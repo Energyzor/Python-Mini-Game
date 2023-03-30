@@ -1,13 +1,12 @@
+from asyncio import AbstractEventLoop
+from typing import List, Optional
+
 import math
 import random
 
 import pygame
 
-from TikTokLive import TikTokLiveClient
-from TikTokLive.types.events import CommentEvent, ConnectEvent
-
-# Instantiate the client with the user's username
-client: TikTokLiveClient = TikTokLiveClient(unique_id="c7clops")
+import json
 
 
 class Constants:
@@ -17,32 +16,40 @@ class Constants:
     ORANGE = (255, 165, 0)
     BLUE = (0, 0, 255)
     PURPLE = (128, 0, 128)
-    WHITE = (255, 255, 255)
+    WHITE = (220, 220, 220)
     BLACK = (0, 0, 0)
+    RED = (255, 0, 0)
 
     # define brick properties
-    BRICK_WIDTH = 50
-    BRICK_HEIGHT = 20
-    BRICKS_PER_ROW = 20
+    BRICK_WIDTH = 51
+    BRICK_HEIGHT = 25
+    BRICKS_PER_ROW = 25
     NUM_ROWS = 10
     BRICK_COLORS = [GREEN, YELLOW, ORANGE, BLUE, PURPLE]
 
-    BRICK_BORDER_COLOR = pygame.Color(0, 0, 0)
-    BRICK_BORDER_WIDTH = 2
-
     # define ball properties
-    BALL_RADIUS = 10
-    BALLS_PER_LEVEL = 20
+    BALL_RADIUS = 15
+    BALLS_PER_LEVEL = 10
     ACCELERATOR = 2
+    MAX_LEVEL = 10
 
     # Game Level
     LEVEL = 1
 
 
 class Ball:
+    names = []
+    with open('gift_names.json', 'r') as f:
+        try:
+            names = json.load(f)
+        except json.decoder.JSONDecodeError:
+            names = []
+
     def __init__(self, _id, _screen_height, _screen_width):
         self.id = _id
         self.score = 0
+        # Use the _id to index the list of names
+        self.name = Ball.names[_id % len(Ball.names)]
 
         r = random.randint(0, 255)
         g = random.randint(0, 255)
@@ -98,28 +105,12 @@ class Brick:
         self.hits = random.randint(1, 5)
         self.color = Constants.BRICK_COLORS[(self.hits - 1)]
 
-    def draw(self, surface):
-        pygame.draw.rect(surface, Constants.BRICK_BORDER_COLOR,
-                         self.rect, Constants.BRICK_BORDER_WIDTH)
-        inner_rect = self.rect.inflate(-Constants.BRICK_BORDER_WIDTH, -
-                                       Constants.BRICK_BORDER_WIDTH)
-        pygame.draw.rect(surface, self.color, inner_rect)
-
-
-"""
-class Brick:
-    def __init__(self, x_brick, y_brick):
-        self.rect = pygame.Rect(
-            x_brick, y_brick, Constants.BRICK_WIDTH, Constants.BRICK_HEIGHT)
-        self.hits = random.randint(1, 5)
-        self.color = Constants.BRICK_COLORS[(self.hits - 1)] """
-
 
 class Board:
     def __init__(self):
-        self.title_font = pygame.font.Font("font.ttf", 20)
-        self.game_over_font = pygame.font.Font("font.ttf", 30)
-        self.score_font = pygame.font.Font("font.ttf", 15)
+        self.title_font = pygame.font.Font("font.ttf", 25)
+        self.game_over_font = pygame.font.Font("font.ttf", 40)
+        self.score_font = pygame.font.Font("font.ttf", 20)
 
         # set up the screen
         self.playground_width = (
@@ -135,7 +126,7 @@ class Board:
         self.max_ball_y = screen_size[1] - Constants.BALL_RADIUS
 
         # set the caption of the window
-        pygame.display.set_caption("Breakout")
+        pygame.display.set_caption("Funny Engagement Game")
 
         # Barrier
         self.barrier_size = (5, self.screen_height)
@@ -146,7 +137,7 @@ class Board:
         # Define the panel size and position
         self.panel_size = (220, (100 * Constants.BALLS_PER_LEVEL))
         self.panel_pos = (
-            (self.screen.get_width() - self.panel_size[0] - 5), 5)
+            (self.screen.get_width() - self.panel_size[0] - 25), 5)
 
         # Create the panel surface
         self.panel = pygame.Surface(self.panel_size)
@@ -165,12 +156,24 @@ class Board:
                 brick_x = col * (Constants.BRICK_WIDTH + 4) + 4
                 brick_y = row * (Constants.BRICK_HEIGHT + 2) + bricks_top
                 brick = Brick(brick_x, brick_y)
-                brick.draw(self.screen)
                 self.bricks.append(brick)
 
-    def create_balls(self):
+    """ def create_balls(self):
         # create the balls
         for i in range(Constants.BALLS_PER_LEVEL):
+            ball = Ball(i, self.screen_height, self.playground_width)
+            self.balls.append(ball) """
+
+    def create_balls(self):
+        # read the names from the file
+        with open('gift_names.json', 'r') as f:
+            try:
+                names = json.load(f)
+            except json.decoder.JSONDecodeError:
+                names = []
+
+        # create the balls
+        for i in range(len(names)):
             ball = Ball(i, self.screen_height, self.playground_width)
             self.balls.append(ball)
 
@@ -191,50 +194,33 @@ class Board:
 
     def display_level(self):
         text_surface = self.score_font.render(
-            f"Level: {Constants.LEVEL}", True, Constants.BLACK)
+            f"Level: {Constants.LEVEL}", True, Constants.RED)
         self.screen.blit(
-            text_surface, (self.playground_width - 80, self.screen_height - 50))
+            text_surface, (self.playground_width - 130, self.screen_height - 50))
 
     def update_scores(self):
         self.display_level()
-        title = self.title_font.render("Ball Scores", True, Constants.BLACK)
-        self.panel.blit(title, (10, 10))
-
-        y_offset = 50
+        title = self.title_font.render("TOP 10", True, Constants.RED)
+        self.panel.blit(title, (50, 10))
 
         sorted_balls = sorted(
             self.balls, key=lambda ball: ball.score, reverse=True)
+        top_balls = sorted_balls[:10]
 
-        for i in range(min(len(sorted_balls), 10)):
-            ball = sorted_balls[i]
+        y_offset = 100
+        for ball in top_balls:
             score_color = ball.color
             score = ball.score
+            name = ball.name
+            name_text = self.score_font.render(name, True, Constants.BLACK)
             score_text = self.score_font.render(
-                str(score), True, Constants.BLACK)
+                str(score), True, Constants.RED)
             pygame.draw.circle(self.panel, score_color, (50, y_offset), 10)
-            self.panel.blit(score_text, (65, y_offset-9))
+            self.panel.blit(
+                score_text, (70 + name_text.get_width() + 10, y_offset - 9))
+            self.panel.blit(name_text, (70, y_offset - 9))
+
             y_offset += 40
-
-
-"""         for i in range(min(len(self.balls), 10)):
-            ball = self.balls[i]
-            score_color = ball.color
-            score = ball.score
-            score_text = self.score_font.render(
-                str(score), True, Constants.BLACK)
-            pygame.draw.circle(self.panel, score_color, (50, y_offset), 10)
-            self.panel.blit(score_text, (70, y_offset))
-            y_offset += 40 """
-
-
-"""         for ball in self.balls:
-            score_color = ball.color
-            score = ball.score
-            score_text = self.score_font.render(
-                str(score), True, Constants.BLACK)
-            pygame.draw.circle(self.panel, score_color, (50, y_offset), 10)
-            self.panel.blit(score_text, (70, y_offset))
-            y_offset += 40 """
 
 
 class GameLogic:
@@ -248,6 +234,7 @@ class GameLogic:
         self.board.display_level()
 
         self.is_game_over = False
+        self.game_over_font = pygame.font.SysFont(None, 50)
 
     def reset_game(self):
         self.board.reset_board()
@@ -296,7 +283,7 @@ class GameLogic:
                 break
 
         if len(self.board.bricks) == 0:
-            if Constants.LEVEL < 10:
+            if Constants.LEVEL < Constants.MAX_LEVEL:
                 Constants.LEVEL += 1
                 self.reset_game()
             else:
@@ -308,9 +295,17 @@ class GameLogic:
 
         # start the game loop
         while True:
-
             if self.is_game_over:
+                # create the "Game Over" message surface
                 self.board.display_game_over()
+
+                # handle events
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        pygame.quit()
+                        quit()
+
+                pygame.display.flip()
                 continue
 
             # handle events
@@ -326,7 +321,7 @@ class GameLogic:
                 # display_score(ball)
 
             # update the screen
-            self.board.screen.fill((220, 220, 220))
+            self.board.screen.fill(Constants.WHITE)
             self.board.screen.blit(self.board.panel, self.board.panel_pos)
 
             self.board.panel.fill(Constants.WHITE)
@@ -336,8 +331,6 @@ class GameLogic:
             self.board.screen.blit(self.board.barrier, self.board.barrier_pos)
 
             for brick in self.board.bricks:
-                pygame.draw.rect(self.board.screen, Constants.BRICK_BORDER_COLOR,
-                                 brick.rect, Constants.BRICK_BORDER_WIDTH)
                 pygame.draw.rect(self.board.screen, brick.color, brick.rect)
 
             for ball in self.board.balls:
@@ -350,71 +343,6 @@ class GameLogic:
             clock.tick(60)
 
 
-# Define how you want to handle specific events via decorator
-@client.on("connect")
-async def on_connect(_: ConnectEvent):
-    print("Connected to Room ID:", client.room_id)
-
-
-# Notice no decorator?
-async def on_comment(event: CommentEvent):
-    print(f"{event.user.nickname} -> {event.comment}")
-
-
-# Define handling an event via "callback"
-client.add_listener("comment", on_comment)
-
-
-class GameLogic:
-    def __init__(self):
-        # Initialize the game logic
-
-        # Initialize the TikTokLive client
-        self.client = tiktok_live.TikTokLiveClient("@tomwhoasmr")
-        self.client.add_listener('comment', self.on_comment)
-        self.client.add_listener('connect', lambda event: print('Connected!'))
-
-        # Initialize the display
-        self.display = DisplayCase()
-
-    def on_comment(self, event):
-        # Process the comment event
-
-        # ...
-
-    def run(self):
-        # Start the TikTokLive client and display
-        asyncio.ensure_future(self.client.start())
-        asyncio.ensure_future(self.display.start())
-
-        # Run the game loop
-        while True:
-            # Handle game events
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    pygame.quit()
-                    return
-
-            # Update the game state
-            # ...
-
-            # Render the game
-            # ...
-
-            # Update the display
-            # ...
-
-            # Run the event loop
-            asyncio.get_event_loop().run_until_complete(asyncio.sleep(0.01))
-
-
-if __name__ == '__main__':
-    # Run the game logic
+if __name__ == "__main__":
     game = GameLogic()
     game.run()
-
-""" if __name__ == '__main__':
-    # Run the client and block the main thread
-    # await client.start() to run non-blocking
-    game = GameLogic()
-    game.run() """
